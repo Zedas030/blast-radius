@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Blast-Radius discovery
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=120
+Persistent=true
+OnBootSec=3min
+
+[Install]
+WantedBy=timers.target

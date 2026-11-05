@@ -1,0 +1,59 @@
+# Blast-Radius configuration.
+# Installed as /opt/blast-radius/config/config.yaml. Changes take effect after
+#   sudo docker compose -f /opt/blast-radius/docker-compose.yml restart     (engine part)
+# and with the next collector run (collector part):
+#   sudo systemctl start blast-radius-collect
+# Secrets do NOT belong here – the Home Assistant token lives in /opt/blast-radius/.env (see README, "Secrets").
+
+# ---------------------------------------------------------------------------------------------
+# Collector: runs on the host (systemd timer, nightly 03:30) and only READS. It writes exactly one
+# file (output). Paths are host paths.
+collector:
+  output: /var/lib/blast-radius/facts/facts.json
+  # host_name: myserver          # default: the system host name
+  # sources: [host, docker, tailscale, pihole, nginx, prometheus, grafana, homeassistant]
+  ha_config_dir: /home/pi/homeassistant              # HA config with .storage/, automations.yaml, scripts.yaml
+  nginx_sites: /etc/nginx/sites-enabled
+  prometheus_config: /etc/prometheus/prometheus.yml
+  grafana_datasources: /etc/grafana/provisioning/datasources
+  pihole_toml: /etc/pihole/pihole.toml
+  # systemd services that are noise for a dependency map (regular expressions)
+  ignore_units: ["^systemd-", "^user@", "^getty@", "^serial-getty@", "^dbus", "^polkit", "^rtkit",
+                 "^wpa_supplicant", "^ModemManager", "^bluetooth", "^avahi", "^cron", "^rsyslog", "^udisks2",
+                 "^accounts-daemon", "^colord", "^cups", "^lightdm", "^packagekit", "^triggerhappy",
+                 "^nfs-blkmap", "^unattended-upgrades", "^NetworkManager", "^clamav", "^ssh"]
+  # container environment variables that are not real dependencies (regular expressions)
+  ignore_env_vars: ["^PIP_", "^UV_", "^PATH$", "^LANG", "^GPG_KEY$"]
+
+# ---------------------------------------------------------------------------------------------
+# Engine (inside the container): paths are container paths.
+engine:
+  facts_files: [/data/facts/*.json]      # one file per host; more hosts = more files (e.g. copied from a second server)
+  overrides_file: /config/overrides.yaml
+  data_dir: /data/state
+  check_interval_seconds: 60             # how often inputs are checked for changes
+  facts_max_age_hours: 26                # older facts = "nightly discovery did not run" alert
+  shrink_alert_ratio: 0.2                # alert + keep old graph if the new one has 20 % fewer nodes …
+  shrink_type_ratio: 0.5                 # … or one node type (with ≥ shrink_type_min_nodes) lost half of its nodes
+  shrink_type_min_nodes: 10
+  auto_accept_after: 3                   # a smaller graph seen this many builds in a row is accepted automatically
+  keep_snapshots: 30                     # graph snapshots kept in data_dir/snapshots
+
+analysis:
+  spof_threshold: 0.5                    # "single point of failure" = takes down more than 50 % of functions or entities
+
+# ---------------------------------------------------------------------------------------------
+homeassistant:
+  url: http://192.0.2.10:8123
+  token_env: HA_TOKEN                    # name of the variable in .env that holds the long-lived token
+  notify_service: notify.mobile_app_phone
+  status_sensor: sensor.blast_radius     # state published for the dead man's switch automation
+  poll_seconds: 60
+  mass_outage:
+    min_entities: 5                      # this many entities newly "unavailable" …
+    window_seconds: 300                  # … within 5 minutes = mass outage → cause analysis + notification
+    cooldown_minutes: 60                 # the same cause is reported at most once per hour
+
+web:
+  port: 8098
+  public_url: http://192.0.2.10:8098     # used as link in notifications

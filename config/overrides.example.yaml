@@ -1,0 +1,239 @@
+# Blast-Radius overrides: everything the collector cannot discover by itself.
+# EXAMPLE – copy to /opt/blast-radius/config/overrides.yaml and adapt names, IPs and functions to your home.
+#
+# Edit this file freely; it is re-read on every rebuild (nightly, or when you press "Rebuild" in the UI,
+# or within a minute after saving it). Unresolvable references show up under "Warnings" in the web UI.
+#
+# Reference syntax (used in needs / uses / any_of / powered_by / runs_on / controlled_by / edges):
+#   hw:<key> cloud:<key> net:<key> host:<key> svc:<key> fn:<key>   nodes defined in this file
+#   net:lan net:internet net:dns net:dhcp net:tailnet                 built-in network nodes
+#   container:<name>        a Docker container          unit:<name>       a systemd unit
+#   site:<nginx site file>  an nginx site               port:<n>          whatever listens on port n
+#   integration:<domain or exact label>                 device:<HA device name>[@<integration domain>]
+#   automation:<alias>   script:<id or alias>   dashboard:<title>
+#   light.living_room          an entity id;  climate.*  = all matching entities
+#
+# Edge kinds: needs (hard), uses (soft: only "degraded" unless ALL of them fail),
+#             any_of (list of alternative groups: fails only if every alternative fails),
+#             powered_by, runs_on, controlled_by.
+# Set "spof: false" on a node to keep it out of the single-point-of-failure list (still simulatable).
+
+hardware:
+  mains:
+    label: Mains power (house)
+    aliases: [strom, stromausfall, power, power outage]
+    spof: false            # a power cut kills everything, that is not news
+  plug-pi:
+    label: Tapo plug "Pi plug" (powers the Pi)
+    ha_device: "Pi plug@tplink"
+    powered_by: mains
+  plug-router:
+    label: Tapo plug "Router plug" (powers the Fritzbox)
+    ha_device: "Router plug@tplink"
+    powered_by: mains
+    note: Turning this plug off from HA cuts the network – and HA can then not switch it back on.
+  plug-pc:
+    label: Tapo plug "PC plug"
+    ha_device: "PC plug@tplink"
+    powered_by: mains
+  fritzbox:
+    label: FRITZ!Box 7590 (router, Wi-Fi, DHCP)
+    aliases: [fritzbox, fritz box, fritz, router, wlan router]
+    ips: [192.0.2.1, "2001:db8::1"]
+    ha_device: "FRITZ!Box 7590@fritz"
+    powered_by: plug-router
+  pi:
+    label: Raspberry Pi (board)
+    aliases: [pi, raspi, raspberry, raspberry pi]
+    powered_by: plug-pi
+  zigbee-coordinator:
+    label: Zigbee coordinator (SONOFF Dongle-M)
+    aliases: [zigbee coordinator, zigbee-coordinator, coordinator, koordinator, zigbee-koordinator, dongle, sonoff dongle, zigbee]
+    ips: [192.0.2.186]
+    ha_device: "SONOFF Dongle-M@zha"
+    needs: net:lan            # connected via Ethernet to the Fritzbox
+    powered_by: mains         # adjust if it runs on PoE or a USB port of another device
+  kasa-hub:
+    label: Kasa Smart Hub (thermostats, temperature sensors)
+    aliases: [kasa hub, tapo hub, smart hub, hub]
+    ha_device: "Smart Hub@tplink"
+    needs: net:lan
+    powered_by: mains
+  nas:
+    label: Synology NAS
+    aliases: [nas, synology, homenas]
+    ips: [192.0.2.128]
+    needs: net:lan
+    powered_by: mains
+  sonos:
+    label: Sonos speaker (bedroom)
+    aliases: [sonos, era 100, lautsprecher]
+    ips: [192.0.2.159]
+    ha_device: "Bedroom@sonos"
+    needs: net:lan
+    powered_by: mains
+  noah:
+    label: Balcony battery
+    aliases: [noah, noah 2000, batterie, speicher]
+    ha_device: "Balcony battery@mqtt"
+    powered_by: mains
+
+hosts:
+  raspi:
+    label: Raspberry Pi (raspi, OS)
+    aliases: [pi, raspi, raspberry pi, raspberry]
+    runs_on: hw:pi
+  pc:
+    label: PC (Windows)
+    aliases: [pc, rechner, computer, windows]
+    ips: [192.0.2.145]
+    powered_by: plug-pc
+    needs: net:lan
+  sff:
+    label: SFF server
+    planned: true
+    aliases: [sff, sff server, server]
+    note: Arrives later. Once it runs, install the collector there and add its facts file to config.yaml.
+
+networks:
+  internet:
+    needs: cloud:isp
+
+cloud:
+  isp:
+    label: Internet provider (cable line)
+    aliases: [provider, isp]
+  growatt:
+    label: Growatt cloud
+    hosts: [openapi.growatt.com, server.growatt.com, server-api.growatt.com]
+    aliases: [growatt cloud]
+  tuya:
+    label: Tuya cloud
+    hosts: [apigw.tuyaeu.com]
+  amazon:
+    label: Amazon Alexa cloud
+    hosts: [amazon.de, alexa.amazon.de]
+  spotify:
+    label: Spotify
+  vesync:
+    label: VeSync cloud (air purifier)
+  bambu:
+    label: Bambu Lab cloud
+  ha-push:
+    label: Home Assistant push relay (Apple push)
+    hosts: [mobile-apps.home-assistant.io]
+  tailscale:
+    label: Tailscale coordination server
+    hosts: [controlplane.tailscale.com]
+  anthropic:
+    label: LLM API (the voice assistant's brain, cloud)
+  edge-tts:
+    label: Microsoft Edge TTS (Voice assistant' voice, cloud)
+  metno:
+    label: Met.no weather service
+  google:
+    label: Google Translate TTS
+
+services:
+  assistant:
+    label: Voice assistant voice assistant
+    aliases: [assistant]
+    runs_on: host:pc
+    needs: [container:homeassistant, cloud:anthropic]
+    uses: [cloud:edge-tts, hw:nas, hw:sonos, integration:ha_mcp_tools]
+    note: Runs on the PC (not 24/7). Brain = cloud LLM, voice = edge-tts with a local fallback.
+
+# Extra dependencies of Home Assistant integrations, by integration domain.
+integrations:
+  alexa_media: [cloud:amazon]
+  spotify: [cloud:spotify]
+  vesync: [cloud:vesync]
+  bambu_lab: [cloud:bambu]
+  met: [cloud:metno]
+  google_translate: [cloud:google]
+  sonos: [hw:sonos]
+  radio_browser: [net:internet]
+
+# Free-form edges the collector cannot see.
+edges:
+  - {from: container:noah-mqtt, to: cloud:growatt, note: noah-mqtt polls the Growatt cloud API}
+  - {from: "device:Balcony battery@mqtt", to: container:noah-mqtt, note: NOAH values come from noah-mqtt via MQTT}
+  - {from: container:uni-meter, to: "automation:House consumption to MQTT", note: HA publishes house consumption to MQTT for uni-meter}
+  - {from: hw:noah, to: container:uni-meter, kind: needs, soft: true, note: NOAH reads the emulated smart meter for zero export}
+
+# Functions as you experience them. These are what the impact answers are grouped by.
+functions:
+  heating:
+    label: Heating (radiator thermostats)
+    aliases: [heizung, thermostate, heating]
+    needs: [hw:kasa-hub]
+    uses: [climate.*]
+  heating-follows:
+    label: Heating follows me
+    aliases: [heizung folgt mir]
+    needs: ["automation:Heating follows me"]
+  room-detection:
+    label: Room / presence detection
+    aliases: [raumerkennung, präsenz, anwesenheit, presence]
+    needs: [input_select.current_room]
+    uses: [binary_sensor.*_presence*]
+  living-room-light:
+    label: Living room light
+    aliases: [licht, licht wohnzimmer, light]
+    needs: [light.living_room]
+    uses: ["automation:Living room light follows me"]
+  music-follows:
+    label: Music follows me
+    aliases: [musik, music]
+    needs: ["automation:Music follows me"]
+  sonos:
+    label: Announcements & music on Sonos
+    aliases: [durchsagen, ansagen, announcements]
+    needs: [integration:sonos]
+  solar-display:
+    label: Solar display (Growatt, NOAH)
+    aliases: [solar, solaranzeige, pv, photovoltaik]
+    needs: [site:pv-dashboard]
+    uses: [sensor.battery_*]
+    note: The Growatt integration in HA is disabled; NOAH values come via noah-mqtt.
+  zero-export:
+    label: Zero export control (NOAH + smart meter)
+    aliases: [nulleinspeisung, zero export, einspeisung]
+    needs: ["automation:Zero export control", container:uni-meter, container:noah-mqtt]
+  remote-access:
+    label: Remote access via Tailscale
+    aliases: [fernzugriff, remote access, tailscale, vpn]
+    needs: [net:tailnet]
+  assistant:
+    label: Voice assistant voice assistant
+    aliases: [assistant, sprachassistent]
+    needs: [svc:assistant]
+  push:
+    label: Push notifications to the phone
+    aliases: [push, benachrichtigungen, notifications, handy]
+    needs: ["integration:Mobile app: Phone", cloud:ha-push]
+  wake-pc:
+    label: Wake the PC (webhook)
+    aliases: [pc einschalten, wake on lan]
+    needs: ["automation:Wake PC (webhook)"]
+  ipad-station:
+    label: iPad charging station
+    aliases: [ipad station, ipad laden]
+    needs: ["automation:Tablet charging 30-95 %"]
+  ha-app:
+    label: Home Assistant app & dashboard
+    aliases: [home assistant app, dashboard, ha app]
+    needs: [dashboard:Overview]
+  monitoring:
+    label: Monitoring (Grafana, Prometheus)
+    aliases: [monitoring, grafana, überwachung]
+    needs: [unit:grafana-server, unit:prometheus]
+    uses: [site:monitoring]
+  pi-docs:
+    label: Pi documentation
+    aliases: [doku, pi doku, dokumentation]
+    needs: [site:raspi-doku]
+  internet:
+    label: Internet at home
+    aliases: [internet, online]
+    needs: [net:internet]

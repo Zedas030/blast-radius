@@ -1,0 +1,32 @@
+[Unit]
+Description=Blast-Radius collector (read-only discovery of hosts, Docker, network and Home Assistant)
+Documentation=file:///opt/blast-radius/app/README.md
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/blast-radius-collect
+# Exit code 2 = some sources failed; the facts file is still written and the engine alerts.
+SuccessExitStatus=2
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=300
+
+# Read-only sandbox: the whole file system is read-only except the facts directory.
+ProtectSystem=strict
+ReadWritePaths=/var/lib/blast-radius/facts
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+MemoryMax=256M

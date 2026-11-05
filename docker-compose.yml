@@ -1,0 +1,33 @@
+# Blast-Radius engine + web UI. The read-only host collector runs outside Docker (systemd timer),
+# see systemd/blast-radius-collect.service. Installed to /opt/blast-radius by scripts/install.sh.
+services:
+  blast-radius:
+    build: ./app
+    image: blast-radius:local
+    container_name: blast-radius
+    restart: unless-stopped
+    env_file: .env                     # HA_TOKEN (chmod 600)
+    environment:
+      BLAST_RADIUS_CONFIG: /config/config.yaml
+      TZ: Europe/Berlin
+    ports:
+      - "8098:8098"
+    volumes:
+      - ./config:/config:ro                         # config.yaml + overrides.yaml
+      - /var/lib/blast-radius/facts:/data/facts:ro  # written by the host collector
+      - /var/lib/blast-radius/state:/data/state     # active graph, snapshots, change log
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: 0.5
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
