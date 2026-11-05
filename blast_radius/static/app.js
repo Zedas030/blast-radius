@@ -731,5 +731,5 @@ function showTab(t) {
   const u = new URLSearchParams(location.search);
   if (u.get("node")) { showTab("whatif"); setRoots([u.get("node")]); }
   else if (u.get("ask")) { const id = await resolveAsk(u.get("ask")); if (id) setRoots([id]); }
-  else { const t = store("br-tab"); if (t && t !== "whatif") showTab(t); }
+  else { const t = u.get("tab") || store("br-tab"); if (t && t !== "whatif" && document.getElementById(`tab-${t}`)) showTab(t); }
 })();
