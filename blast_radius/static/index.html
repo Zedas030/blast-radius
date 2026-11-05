@@ -3,52 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>Blast-Radius</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%23e5484d' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23e5484d' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23e5484d'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23ff5d5d' stroke-width='2.5' opacity='.45'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23ff5d5d' stroke-width='2.5' opacity='.75'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23ff5d5d'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
-<header>
-  <div class="brand"><span class="logo"></span>Blast-Radius</div>
-  <nav id="tabs">
+<header class="top">
+  <a class="brand" href="/" aria-label="Blast-Radius home">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" class="r3"/><circle cx="16" cy="16" r="8" class="r2"/><circle cx="16" cy="16" r="3.5" class="r1"/></svg>
+    <span>Blast-Radius</span>
+  </a>
+  <nav id="tabs" class="seg" aria-label="Views">
     <button data-tab="map" class="active">Map</button>
-    <button data-tab="spof">Single points of failure</button>
-    <button data-tab="live">Live &amp; cause</button>
+    <button data-tab="spof">Weak spots</button>
+    <button data-tab="live">Live</button>
     <button data-tab="changes">Changes</button>
     <button data-tab="health">Health</button>
   </nav>
-  <div id="status-pill" class="pill">…</div>
+  <div id="status-pill" class="pill"><i></i><span>…</span></div>
 </header>
 
 <main>
   <section id="tab-map" class="tab active">
     <aside id="side">
       <div class="search">
-        <input id="q" type="search" placeholder="Search: pi, fritzbox, zigbee, heating …" autocomplete="off">
-        <div id="results"></div>
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search or ask: what if the router fails?" autocomplete="off" spellcheck="false">
+        <div id="results" role="listbox"></div>
       </div>
-      <div class="hint" id="hint">Click a node to simulate its failure. Shift-click adds more nodes to the same failure.
-        Ask in plain words, e.g. <a href="#" data-ask="What happens if the Pi crashes?">What happens if the Pi crashes?</a></div>
       <div id="impact"></div>
     </aside>
     <div id="canvas-wrap">
-      <div id="cy"></div>
-      <div class="toolbar">
-        <label><input type="checkbox" id="show-entities"> entities</label>
-        <button id="btn-fit" title="Fit to screen">Fit</button>
-        <button id="btn-reset" title="Clear simulation">Reset</button>
+      <div id="cy" aria-label="Dependency map"></div>
+      <div class="layers" id="layers" aria-label="Layers"></div>
+      <div class="tools">
+        <button id="btn-fit" class="icon-btn" title="Fit to screen" aria-label="Fit to screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="btn-reset" class="icon-btn" title="Clear simulation" aria-label="Clear simulation"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <div class="legend" id="legend"></div>
+      <div class="hint-chip" id="canvas-hint">Click a node to simulate its failure · Shift-click to combine</div>
     </div>
   </section>
 
-  <section id="tab-spof" class="tab page"><div id="spof"></div></section>
-  <section id="tab-live" class="tab page"><div id="live"></div></section>
-  <section id="tab-changes" class="tab page"><div id="changes"></div></section>
-  <section id="tab-health" class="tab page"><div id="health"></div></section>
+  <section id="tab-spof" class="tab page"><div id="spof" class="wrap"></div></section>
+  <section id="tab-live" class="tab page"><div id="live" class="wrap"></div></section>
+  <section id="tab-changes" class="tab page"><div id="changes" class="wrap"></div></section>
+  <section id="tab-health" class="tab page"><div id="health" class="wrap"></div></section>
 </main>
 
 <script src="/static/vendor/cytoscape.min.js"></script>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=2"></script>
 </body>
 </html>
