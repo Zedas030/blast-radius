@@ -26,6 +26,8 @@ class H(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(n) or b"null")
 
     def do_GET(self):  # noqa: N802
+        if self.path == "/api/config":
+            return self._send(200, {"state": "RUNNING", "version": "fake"})
         if self.path == "/api/states":
             STATE["auth"].append(self.headers.get("Authorization", ""))
             return self._send(200, STATE["states"])

@@ -32,6 +32,7 @@ homeassistant:
   url: http://br-e2e-fakeha:8123
   notify_service: notify.mobile_app_test
   poll_seconds: 2
+  startup_grace_seconds: 0
   mass_outage: {min_entities: 5, window_seconds: 60, cooldown_minutes: 60}
 web:
   port: 8098

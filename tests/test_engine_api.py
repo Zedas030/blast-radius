@@ -36,6 +36,11 @@ class FakeHA:
     def states(self) -> list[dict]:
         return self.states_list
 
+    def core_state(self) -> str:
+        return self.core
+
+    core = "RUNNING"
+
 
 def write_facts(path: str, facts: dict) -> None:
     with open(path, "w", encoding="utf-8") as fh:
@@ -53,7 +58,7 @@ def env(tmp_path):  # type: ignore[no-untyped-def]
         fh.write(s.OVERRIDES_YAML)
     cfg = _merge(DEFAULTS, {
         "engine": {"facts_files": [facts_path], "overrides_file": ov_path, "data_dir": str(tmp_path / "state")},
-        "homeassistant": {"url": "http://ha.invalid", "mass_outage": {"min_entities": 5, "window_seconds": 300,
+        "homeassistant": {"url": "http://ha.invalid", "startup_grace_seconds": 0, "mass_outage": {"min_entities": 5, "window_seconds": 300,
                                                                      "cooldown_minutes": 60}},
     })
     eng = Engine(cfg)
@@ -153,6 +158,41 @@ def test_mass_outage_detection_notifies_with_cause_and_cooldown(env) -> None:  #
     assert ha.status and ha.status[-1][1]["last_cause"].startswith("7 entities")
 
 
+def test_no_alarm_while_home_assistant_starts(env, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    eng, *_ = env
+    eng.cfg["homeassistant"]["startup_grace_seconds"] = 600
+    eng.check()
+    zig = ["binary_sensor.motion_kitchen", "sensor.motion_kitchen_lux", "binary_sensor.motion_hall",
+           "sensor.motion_hall_lux", "binary_sensor.motion_bath", "sensor.motion_bath_lux", "button.coordinator_identify"]
+    clock = [1_900_000_000.0]
+    monkeypatch.setattr("blast_radius.engine.time.time", lambda: clock[0])
+    ha = eng.ha
+    ha.core, ha.states_list = "NOT_RUNNING", [{"entity_id": e, "state": "on"} for e in zig]
+    assert eng.poll_ha()["warming_up"] is True
+    # HA is RUNNING, integrations still loading: everything unavailable for a moment
+    ha.core, ha.states_list = "RUNNING", [{"entity_id": e, "state": "unavailable"} for e in zig]
+    clock[0] += 60
+    live = eng.poll_ha()
+    assert live["warming_up"] is True and live["new"] == 0 and not ha.sent
+    clock[0] += 600  # grace over; still unavailable = baseline, no alarm
+    live = eng.poll_ha()
+    assert live["warming_up"] is False and live["new"] == 0 and not ha.sent
+    # a real outage later is reported
+    ha.states_list = [{"entity_id": e, "state": "on"} for e in zig]
+    clock[0] += 60
+    eng.poll_ha()
+    ha.states_list = [{"entity_id": e, "state": "unavailable"} for e in zig]
+    clock[0] += 60
+    eng.poll_ha()
+    assert [m for m in ha.sent if "likely cause: Zigbee coordinator" in m]
+    # HA unreachable (restart) restarts the grace period
+    def down():  # type: ignore[no-untyped-def]
+        raise OSError("connection refused")
+    ha.states = down
+    eng.poll_ha()
+    assert eng.ha_running_since is None
+
+
 def test_small_outage_is_not_reported(env) -> None:  # type: ignore[no-untyped-def]
     eng, *_ = env
     eng.check()
@@ -184,6 +224,9 @@ def test_api_endpoints(client) -> None:  # type: ignore[no-untyped-def]
     assert r["roots"][0]["id"] == "hw:router"
     a = client.get("/api/ask", params={"q": "Was passiert, wenn der Zigbee-Coordinator ausfällt?"}).json()
     assert a["matched"]["id"] == "hw:coordinator" and "Presence detection" in a["speech"]
+    assert a["matched"]["say"] == "der Zigbee-Koordinator"
+    r = client.get("/api/ask", params={"q": "Was passiert, wenn der Hub ausfällt?"}).json()
+    assert {"id": "fn:heating", "label": "Heating", "say": "die Heizung"} in r["functions"]["failed"]
     assert client.get("/api/ask", params={"q": "was passiert"}).json()["matched"] is None
     assert client.get("/api/spof").json()["spofs"]
     sim = client.post("/api/cause/simulate", json={"entities": ["binary_sensor.motion_kitchen", "binary_sensor.motion_hall",

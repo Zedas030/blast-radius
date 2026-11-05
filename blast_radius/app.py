@@ -124,7 +124,9 @@ def create_app(cfg: dict[str, Any] | None = None, start_loops: bool = True) -> F
             return {"question": q, "matched": None, "alternatives": [],
                     "speech": "I could not tell which device or service you mean."}
         report = engine.impact([hits[0]["id"]], with_paths=False)
-        return {"question": q, "matched": hits[0], "alternatives": hits[1:5], "speech": report["speech"],
+        node = g.nodes[hits[0]["id"]]
+        matched = {**hits[0], **({"say": node.attrs["say"]} if node.attrs.get("say") else {})}
+        return {"question": q, "matched": matched, "alternatives": hits[1:5], "speech": report["speech"],
                 "summary": report["summary"], "functions": report["functions"], "counts": report["counts"]}
 
     @app.get("/api/spof")

@@ -34,6 +34,7 @@ DEFAULTS: dict[str, Any] = {
         "status_sensor": "sensor.blast_radius",
         "poll_seconds": 60,
         "timeout_seconds": 15,
+        "startup_grace_seconds": 600,
         "mass_outage": {
             "min_entities": 5,
             "window_seconds": 300,

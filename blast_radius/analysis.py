@@ -167,6 +167,8 @@ def impact_report(graph: Graph, roots: Iterable[str], *, with_paths: bool = True
 
         def item(n: Any) -> dict[str, Any]:
             d: dict[str, Any] = {"id": n.id, "label": n.label}
+            if n.attrs.get("say"):
+                d["say"] = n.attrs["say"]
             if with_paths:
                 d["path"] = describe_path(graph, sim, n.id)
             return d
@@ -193,7 +195,9 @@ def impact_report(graph: Graph, roots: Iterable[str], *, with_paths: bool = True
     if fn_degraded:
         speech += f" Limited: {_join(fn_degraded, 4)}."
     return {
-        "roots": [{"id": r, "label": graph.nodes[r].label, "type": graph.nodes[r].type} for r in sim.roots],
+        "roots": [{"id": r, "label": graph.nodes[r].label, "type": graph.nodes[r].type,
+                   **({"say": graph.nodes[r].attrs["say"]} if graph.nodes[r].attrs.get("say") else {})}
+                  for r in sim.roots],
         "summary": summary,
         "speech": speech,
         "functions": {

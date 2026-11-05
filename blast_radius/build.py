@@ -588,6 +588,14 @@ class Builder:
         ov = self.ov
 
         def deps(nid: str, spec: dict, where: str) -> None:
+            if not self.g.has(nid):
+                return
+            node = self.g.nodes[nid]
+            if spec.get("say"):
+                node.attrs["say"] = str(spec["say"])  # spoken name for voice assistants
+            for a in as_list(spec.get("aliases")):
+                if a not in node.aliases:
+                    node.aliases.append(str(a))
             for key, kind in (("runs_on", "runs_on"), ("needs", "needs"), ("powered_by", "powered_by"),
                               ("controlled_by", "controlled_by")):
                 vals = spec.get(key)

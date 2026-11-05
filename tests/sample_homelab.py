@@ -173,6 +173,7 @@ hardware:
     powered_by: plug-server
   coordinator:
     label: Zigbee coordinator
+    say: der Zigbee-Koordinator
     aliases: [zigbee coordinator, coordinator, zigbee]
     ips: [192.0.2.50]
     ha_device: "Zigbee Coordinator@zha"
@@ -205,6 +206,7 @@ edges:
 functions:
   heating:
     label: Heating
+    say: die Heizung
     aliases: [heizung]
     needs: [hw:hub]
     uses: [climate.*]

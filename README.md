@@ -130,6 +130,7 @@ Update: pull the repository and run `sudo ./scripts/install.sh` again.
 | `analysis.spof_threshold` | 0.5 | SPOF = takes down > 50 % of functions or entities |
 | `homeassistant.notify_service` | – | e.g. `notify.mobile_app_phone` |
 | `homeassistant.mass_outage.min_entities` | 5 | newly unavailable entities within `window_seconds` that count as mass outage |
+| `homeassistant.startup_grace_seconds` | 600 | after Home Assistant (re)starts, only learn what is unavailable – integrations report `unavailable` while they load |
 
 ### Overrides
 

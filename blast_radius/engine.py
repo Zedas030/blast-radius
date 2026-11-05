@@ -50,7 +50,9 @@ class Engine:
         self.state = self._load_state()
         self.last_signature = ""
         self.last_build: dict[str, Any] = {}
-        self.live: dict[str, Any] = {"ok": None, "unavailable": 0, "new": 0, "last_poll": None, "cause": None}
+        self.live: dict[str, Any] = {"ok": None, "unavailable": 0, "new": 0, "last_poll": None, "cause": None,
+                                     "warming_up": True}
+        self.ha_running_since: float | None = None
         self._load_active()
 
     # ------------------------------------------------------------------ persistence
@@ -263,11 +265,29 @@ class Engine:
             metrics.ha_poll(False, 0)
             return self.live
         try:
+            core_state = self.ha.core_state()
             states = self.ha.states()
         except Exception as exc:  # noqa: BLE001
+            self.ha_running_since = None  # HA restarts or is unreachable: start the grace period again
             self.live.update(ok=False, error=f"{type(exc).__name__}: {exc}"[:200], last_poll=_now_iso())
             metrics.ha_poll(False, len(self.tracker.unavailable()))
             return self.live
+        # While HA starts, integrations report "unavailable" until they are set up. That is no outage:
+        # only learn the baseline until HA has been RUNNING for startup_grace_seconds.
+        now = time.time()
+        if core_state != "RUNNING":
+            self.ha_running_since = None
+        elif self.ha_running_since is None:
+            self.ha_running_since = now
+        grace = float(self.cfg["homeassistant"].get("startup_grace_seconds", 600))
+        if self.ha_running_since is None or now - self.ha_running_since < grace:
+            self.tracker.rebaseline(states)
+            self.live.update(ok=True, error="", last_poll=_now_iso(), unavailable=len(self.tracker.unavailable()),
+                             new=0, cause=None, warming_up=True)
+            metrics.ha_poll(True, len(self.tracker.unavailable()))
+            self.publish_status()
+            return self.live
+        self.live["warming_up"] = False
         self.tracker.update(states)
         return self.evaluate_unavailable(self.tracker.new_within(self.cfg["homeassistant"]["mass_outage"]["window_seconds"]),
                                          self.tracker.unavailable(), notify=True)

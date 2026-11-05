@@ -37,6 +37,13 @@ class HomeAssistant:
             r.raise_for_status()
             return r.json()
 
+    def core_state(self) -> str:
+        """"RUNNING" once Home Assistant has finished starting (GET /api/config)."""
+        with httpx.Client(timeout=self.timeout) as c:
+            r = c.get(f"{self.url}/api/config", headers=self._headers())
+            r.raise_for_status()
+            return str(r.json().get("state", "RUNNING"))
+
     def notify(self, title: str, message: str, url: str = "") -> bool:
         if not self.configured or not self.notify_service:
             log.warning("notification not sent (HA or notify_service not configured): %s", message)
@@ -88,6 +95,11 @@ class UnavailabilityTracker:
         for eid in current:
             if eid not in self.since:
                 self.since[eid] = now if self.initialised else None
+        self.initialised = True
+
+    def rebaseline(self, states: list[dict[str, Any]]) -> None:
+        """Take everything unavailable right now as the normal state (no "new" entities)."""
+        self.since = {s["entity_id"]: None for s in states if s.get("state") == "unavailable"}
         self.initialised = True
 
     def unavailable(self) -> set[str]:

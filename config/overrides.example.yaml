@@ -16,38 +16,46 @@
 # Edge kinds: needs (hard), uses (soft: only "degraded" unless ALL of them fail),
 #             any_of (list of alternative groups: fails only if every alternative fails),
 #             powered_by, runs_on, controlled_by.
+# "say:" is the spoken name for voice assistants (GET /api/ask returns it), e.g. in your own language.
 # Set "spof: false" on a node to keep it out of the single-point-of-failure list (still simulatable).
 
 hardware:
   mains:
     label: Mains power (house)
+    say: der Strom
     aliases: [strom, stromausfall, power, power outage]
     spof: false            # a power cut kills everything, that is not news
   plug-pi:
     label: Tapo plug "Pi plug" (powers the Pi)
+    say: die Steckdose vom Pi
     ha_device: "Pi plug@tplink"
     powered_by: mains
   plug-router:
     label: Tapo plug "Router plug" (powers the Fritzbox)
+    say: die Steckdose der Fritzbox
     ha_device: "Router plug@tplink"
     powered_by: mains
     note: Turning this plug off from HA cuts the network – and HA can then not switch it back on.
   plug-pc:
     label: Tapo plug "PC plug"
+    say: die Steckdose vom PC
     ha_device: "PC plug@tplink"
     powered_by: mains
   fritzbox:
     label: FRITZ!Box 7590 (router, Wi-Fi, DHCP)
+    say: die Fritzbox
     aliases: [fritzbox, fritz box, fritz, router, wlan router]
     ips: [192.0.2.1, "2001:db8::1"]
     ha_device: "FRITZ!Box 7590@fritz"
     powered_by: plug-router
   pi:
     label: Raspberry Pi (board)
+    say: der Pi
     aliases: [pi, raspi, raspberry, raspberry pi]
     powered_by: plug-pi
   zigbee-coordinator:
     label: Zigbee coordinator (SONOFF Dongle-M)
+    say: der Zigbee-Koordinator
     aliases: [zigbee coordinator, zigbee-coordinator, coordinator, koordinator, zigbee-koordinator, dongle, sonoff dongle, zigbee]
     ips: [192.0.2.186]
     ha_device: "SONOFF Dongle-M@zha"
@@ -55,18 +63,21 @@ hardware:
     powered_by: mains         # adjust if it runs on PoE or a USB port of another device
   kasa-hub:
     label: Kasa Smart Hub (thermostats, temperature sensors)
+    say: der Kasa-Hub
     aliases: [kasa hub, tapo hub, smart hub, hub]
     ha_device: "Smart Hub@tplink"
     needs: net:lan
     powered_by: mains
   nas:
     label: Synology NAS
+    say: das NAS
     aliases: [nas, synology, homenas]
     ips: [192.0.2.128]
     needs: net:lan
     powered_by: mains
   sonos:
     label: Sonos speaker (bedroom)
+    say: der Sonos-Lautsprecher
     aliases: [sonos, era 100, lautsprecher]
     ips: [192.0.2.159]
     ha_device: "Bedroom@sonos"
@@ -74,6 +85,7 @@ hardware:
     powered_by: mains
   noah:
     label: Balcony battery
+    say: der NOAH-Speicher
     aliases: [noah, noah 2000, batterie, speicher]
     ha_device: "Balcony battery@mqtt"
     powered_by: mains
@@ -81,10 +93,12 @@ hardware:
 hosts:
   raspi:
     label: Raspberry Pi (raspi, OS)
+    say: der Pi
     aliases: [pi, raspi, raspberry pi, raspberry]
     runs_on: hw:pi
   pc:
     label: PC (Windows)
+    say: der PC
     aliases: [pc, rechner, computer, windows]
     ips: [192.0.2.145]
     powered_by: plug-pc
@@ -102,6 +116,7 @@ networks:
 cloud:
   isp:
     label: Internet provider (cable line)
+    say: der Internetanschluss
     aliases: [provider, isp]
   growatt:
     label: Growatt cloud
@@ -165,33 +180,40 @@ edges:
 functions:
   heating:
     label: Heating (radiator thermostats)
+    say: die Heizung
     aliases: [heizung, thermostate, heating]
     needs: [hw:kasa-hub]
     uses: [climate.*]
   heating-follows:
     label: Heating follows me
+    say: Heizung folgt mir
     aliases: [heizung folgt mir]
     needs: ["automation:Heating follows me"]
   room-detection:
     label: Room / presence detection
+    say: die Raumerkennung
     aliases: [raumerkennung, präsenz, anwesenheit, presence]
     needs: [input_select.current_room]
     uses: [binary_sensor.*_presence*]
   living-room-light:
     label: Living room light
+    say: das Wohnzimmerlicht
     aliases: [licht, licht wohnzimmer, light]
     needs: [light.living_room]
     uses: ["automation:Living room light follows me"]
   music-follows:
     label: Music follows me
+    say: Musik folgt mir
     aliases: [musik, music]
     needs: ["automation:Music follows me"]
   sonos:
     label: Announcements & music on Sonos
+    say: die Durchsagen und Musik auf dem Sonos
     aliases: [durchsagen, ansagen, announcements]
     needs: [integration:sonos]
   solar-display:
     label: Solar display (Growatt, NOAH)
+    say: die Solaranzeige
     aliases: [solar, solaranzeige, pv, photovoltaik]
     needs: [site:pv-dashboard]
     any_of: [net:lan, net:tailnet]
@@ -199,10 +221,12 @@ functions:
     note: The Growatt integration in HA is disabled; NOAH values come via noah-mqtt.
   zero-export:
     label: Zero export control (NOAH + smart meter)
+    say: die Nulleinspeisung
     aliases: [nulleinspeisung, zero export, einspeisung]
     needs: ["automation:Zero export control", container:uni-meter, container:noah-mqtt]
   remote-access:
     label: Remote access via Tailscale
+    say: der Fernzugriff über Tailscale
     aliases: [fernzugriff, remote access, tailscale, vpn]
     needs: [net:tailnet]
   assistant:
@@ -211,33 +235,40 @@ functions:
     needs: [svc:assistant]
   push:
     label: Push notifications to the phone
+    say: die Push-Meldungen aufs Handy
     aliases: [push, benachrichtigungen, notifications, handy]
     needs: ["integration:Mobile app: Phone", cloud:ha-push]
   wake-pc:
     label: Wake the PC (webhook)
+    say: das Einschalten des PCs
     aliases: [pc einschalten, wake on lan]
     needs: ["automation:Wake PC (webhook)", net:lan]   # wake-on-LAN packet
   ipad-station:
     label: iPad charging station
+    say: die iPad-Ladestation
     aliases: [ipad station, ipad laden]
     needs: ["automation:Tablet charging 30-95 %"]
   ha-app:
     label: Home Assistant app & dashboard
+    say: die Home-Assistant-App
     aliases: [home assistant app, dashboard, ha app]
     needs: [dashboard:Overview]
     any_of: [net:lan, net:tailnet]     # reachable at home or remotely
   monitoring:
     label: Monitoring (Grafana, Prometheus)
+    say: das Monitoring
     aliases: [monitoring, grafana, überwachung]
     needs: [unit:grafana-server, unit:prometheus]
     uses: [site:monitoring]
     any_of: [net:lan, net:tailnet]
   pi-docs:
     label: Pi documentation
+    say: die Pi-Doku
     aliases: [doku, pi doku, dokumentation]
     needs: [site:raspi-doku]
     any_of: [net:lan, net:tailnet]
   internet:
     label: Internet at home
+    say: das Internet
     aliases: [internet, online]
     needs: [net:internet]

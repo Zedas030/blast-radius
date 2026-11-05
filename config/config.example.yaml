@@ -49,6 +49,7 @@ homeassistant:
   notify_service: notify.mobile_app_phone
   status_sensor: sensor.blast_radius     # state published for the dead man's switch automation
   poll_seconds: 60
+  startup_grace_seconds: 600             # after HA (re)starts: only learn what is unavailable, no outage alarms
   mass_outage:
     min_entities: 5                      # this many entities newly "unavailable" …
     window_seconds: 300                  # … within 5 minutes = mass outage → cause analysis + notification
