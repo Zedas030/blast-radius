@@ -194,6 +194,7 @@ functions:
     label: Solar display (Growatt, NOAH)
     aliases: [solar, solaranzeige, pv, photovoltaik]
     needs: [site:pv-dashboard]
+    any_of: [net:lan, net:tailnet]
     uses: [sensor.battery_*]
     note: The Growatt integration in HA is disabled; NOAH values come via noah-mqtt.
   zero-export:
@@ -215,7 +216,7 @@ functions:
   wake-pc:
     label: Wake the PC (webhook)
     aliases: [pc einschalten, wake on lan]
-    needs: ["automation:Wake PC (webhook)"]
+    needs: ["automation:Wake PC (webhook)", net:lan]   # wake-on-LAN packet
   ipad-station:
     label: iPad charging station
     aliases: [ipad station, ipad laden]
@@ -224,15 +225,18 @@ functions:
     label: Home Assistant app & dashboard
     aliases: [home assistant app, dashboard, ha app]
     needs: [dashboard:Overview]
+    any_of: [net:lan, net:tailnet]     # reachable at home or remotely
   monitoring:
     label: Monitoring (Grafana, Prometheus)
     aliases: [monitoring, grafana, überwachung]
     needs: [unit:grafana-server, unit:prometheus]
     uses: [site:monitoring]
+    any_of: [net:lan, net:tailnet]
   pi-docs:
     label: Pi documentation
     aliases: [doku, pi doku, dokumentation]
     needs: [site:raspi-doku]
+    any_of: [net:lan, net:tailnet]
   internet:
     label: Internet at home
     aliases: [internet, online]
