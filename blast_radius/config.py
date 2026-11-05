@@ -45,6 +45,10 @@ DEFAULTS: dict[str, Any] = {
         "port": 8098,
         "public_url": "",
     },
+    "ui": {
+        "home_url": "",          # optional link back to your dashboard (shown top right)
+        "home_label": "Dashboard",
+    },
 }
 
 

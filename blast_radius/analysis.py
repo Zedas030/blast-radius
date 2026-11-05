@@ -267,6 +267,39 @@ def spof(graph: Graph, threshold: float = 0.5, limit: int = 25) -> dict[str, Any
     return {"threshold": threshold, "totals": totals, "spofs": spofs, "top": out[:limit]}
 
 
+CATALOG_GROUPS = (
+    ("power", "Power & hardware", ("hardware",)),
+    ("network", "Network", ("network",)),
+    ("hosts", "Computers", ("host",)),
+    ("cloud", "Internet & cloud", ("cloud",)),
+    ("services", "Services & apps", ("service",)),
+)
+
+
+def catalog(graph: Graph) -> dict[str, Any]:
+    """Everything a user would think of as "this could break", grouped, each with its effect on the functions.
+
+    Feeds the "What if" picker: one simulation per node, so the list can show at a glance how much depends on it.
+    """
+    functions = sorted(graph.of_type("function"), key=lambda n: n.label.lower())
+    groups = []
+    for key, title, types in CATALOG_GROUPS:
+        items = []
+        for node in graph.of_type(*types):
+            sim = simulate(graph, [node.id])
+            fn_failed = sum(1 for n in sim.failed if graph.nodes[n].type == "function")
+            fn_degraded = sum(1 for n in sim.degraded if graph.nodes[n].type == "function")
+            ent = sum(1 for n in sim.failed if graph.nodes[n].type == "entity")
+            items.append({"id": node.id, "label": node.label, "type": node.type,
+                          "functions_failed": fn_failed, "functions_degraded": fn_degraded, "entities_failed": ent,
+                          "planned": bool(node.attrs.get("planned"))})
+        items.sort(key=lambda i: (-i["functions_failed"], -i["functions_degraded"], -i["entities_failed"],
+                                  i["label"].lower()))
+        if items:
+            groups.append({"key": key, "title": title, "items": items})
+    return {"functions": [{"id": n.id, "label": n.label} for n in functions], "groups": groups}
+
+
 # --------------------------------------------------------------------------- cause finding
 
 class CauseFinder:

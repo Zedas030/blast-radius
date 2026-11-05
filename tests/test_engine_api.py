@@ -229,6 +229,12 @@ def test_api_endpoints(client) -> None:  # type: ignore[no-untyped-def]
     assert {"id": "fn:heating", "label": "Heating", "say": "die Heizung"} in r["functions"]["failed"]
     assert client.get("/api/ask", params={"q": "was passiert"}).json()["matched"] is None
     assert client.get("/api/spof").json()["spofs"]
+    cat = client.get("/api/catalog").json()
+    assert {f["id"] for f in cat["functions"]} >= {"fn:presence", "fn:heating"}
+    power = next(g for g in cat["groups"] if g["key"] == "power")
+    coord = next(i for i in power["items"] if i["id"] == "hw:coordinator")
+    assert coord["functions_failed"] == 1 and coord["entities_failed"] > 0
+    assert client.get("/api/ui").json()["home_label"] == "Dashboard"
     sim = client.post("/api/cause/simulate", json={"entities": ["binary_sensor.motion_kitchen", "binary_sensor.motion_hall",
                                                                 "binary_sensor.motion_bath"]}).json()
     assert sim["candidates"][0]["id"] == "hw:coordinator"

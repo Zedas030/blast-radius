@@ -10,8 +10,10 @@ with the technical path behind every answer.
   devices → entities, hubs/coordinators (`via_device`), and which automations, scripts and dashboards use which entities.
 - **Overrides** for what cannot be discovered: power supply ("the server hangs on plug X"), cabling, cloud
   dependencies, software on other machines, and *functions* as people experience them.
-- **Impact simulation** in a web UI (Cytoscape.js): click a node → everything affected is highlighted; search;
-  combined failures with shift-click.
+- **"What if" view:** pick what breaks (grouped and sorted by impact, or a one-click scenario such as
+  "power cut" or "router fails") and see all your everyday functions as green / amber / red tiles, each with
+  the chain that explains why. Several failures can be combined.
+- **Impact map** (Cytoscape.js) for the technical view: click a node → everything affected is highlighted.
 - **Single points of failure:** nodes that alone take down more than 50 % of functions or entities.
 - **Cause hint:** when many Home Assistant entities become `unavailable` at once, Blast-Radius finds the most
   likely common cause in the graph ("14 entities unavailable – likely cause: Zigbee coordinator") and notifies you.
@@ -131,6 +133,8 @@ Update: pull the repository and run `sudo ./scripts/install.sh` again.
 | `homeassistant.notify_service` | – | e.g. `notify.mobile_app_phone` |
 | `homeassistant.mass_outage.min_entities` | 5 | newly unavailable entities within `window_seconds` that count as mass outage |
 | `homeassistant.startup_grace_seconds` | 600 | after Home Assistant (re)starts, only learn what is unavailable – integrations report `unavailable` while they load |
+| `ui.home_url` | – | optional link back to your own dashboard, shown top right (e.g. `http://192.0.2.10:8092/`) |
+| `ui.home_label` | `Dashboard` | text of that link |
 
 ### Overrides
 
@@ -178,6 +182,10 @@ out of the SPOF list; `planned: true` marks hardware that does not exist yet.
 
 **Web UI** (`http://<host>:8098`):
 
+- *What if* (start page) – the list on the left holds everything that can break (power & hardware, network,
+  computers, internet & cloud, services), each with how many of your functions it would take down. Click a row
+  to simulate it, **+** to add more failures. On the right every function is a tile: red = stops,
+  amber = works only partly, green = unaffected; click a red tile for the chain of causes. Light/dark toggle top right.
 - *Map* – the graph without entities (toggle "entities" for all of them). Click a node to simulate its failure,
   shift-click to add more. The side panel lists the functions that stop working, those that are degraded,
   things that lost redundancy, and per type every affected node with its path (expand an item).
@@ -195,6 +203,7 @@ out of the SPOF list; `planned: true` marks hardware that does not exist yet.
 | `GET /api/impact?node=<id>&node=<id>` / `?q=<name>` | full impact report with paths |
 | `GET /api/search?q=…` | find nodes |
 | `GET /api/spof` | single points of failure |
+| `GET /api/catalog` | everything that can fail, grouped, with its effect on the functions (feeds "What if") |
 | `POST /api/cause/simulate` `{"entities": [...]}` | likely cause for a set of unavailable entities |
 | `GET /api/live`, `/api/changes`, `/api/status`, `/api/graph` | live state, change log, health, graph |
 | `POST /api/rebuild`, `POST /api/graph/accept` | rebuild now / accept a rejected smaller graph |

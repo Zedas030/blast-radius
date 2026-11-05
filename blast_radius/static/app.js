@@ -203,7 +203,7 @@ async function loadGraph() {
   byId = {};
   G.nodes.forEach((n) => { byId[n.id] = n; });
   renderLayers();
-  buildGraph();
+  if (mapBuilt) buildGraph();
 }
 
 function renderLayers() {
@@ -255,7 +255,7 @@ async function renderIntro() {
   const asks = [["the Pi crashes", "What happens if the Pi crashes?"], ["the router fails", "What happens if the router fails?"],
     ["Zigbee goes down", "What happens if the zigbee coordinator fails?"], ["the internet is down", "What happens if the internet fails?"],
     ["the NAS fails", "What happens if the NAS fails?"]];
-  $("#impact").innerHTML = `<div class="intro"><h1>What fails if…</h1>
+  $("#impact").innerHTML = `<div class="intro"><h2>What fails if…</h2>
       <p>Pick a node on the map, search above, or start with a question.</p>
       <div class="chips">${asks.map(([l, q]) => `<button class="chip" data-ask="${esc(q)}">${esc(l)}</button>`).join("")}</div></div>
     ${spofs.length ? `<div><p class="label">Weak spots</p><div class="spof-mini">${spofs.map((s) =>
@@ -320,7 +320,7 @@ function showImpact(r) {
         <div class="names">${g.failed.slice(0, 300).map((i) => `<div>${esc(i.label)}</div>`).join("")}${g.degraded.slice(0, 100).map((i) => `<div style="color:var(--deg)">${esc(i.label)}</div>`).join("")}</div>
       </details>`).join("")}</div></details>`;
   }
-  html += `<p class="note">${esc(r.summary)}</p>`;
+  html += `<p class="small muted">${esc(r.summary)}</p>`;
   $("#impact").innerHTML = html;
   $("#imp-close").onclick = resetSim;
 }
@@ -375,54 +375,211 @@ async function ask(question) {
   if (!question || !question.trim()) return;
   const r = await api(`/api/ask?q=${encodeURIComponent(question)}`);
   if (!r.matched) {
-    $("#impact").innerHTML = `<div class="intro"><h1>Not sure what you mean</h1><p>${esc(r.speech)} Try a name like Pi, router or NAS.</p></div>`;
+    $("#impact").innerHTML = `<div class="intro"><h2>Not sure what you mean</h2><p>${esc(r.speech)} Try a name like Pi, router or NAS.</p></div>`;
     return;
   }
   await pick(r.matched.id);
 }
 
-/* ------------------------------------------------------------------ pages */
-function meter(x, col) {
-  return `<div class="meter"><div class="bar"><i style="width:${pct(x)};background:${col}"></i></div><b>${pct(x)}</b></div>`;
+/* ------------------------------------------------------------------ What if (default view) */
+const ICON_X = `<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>`;
+const ICON_OK = `<svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+const ICON_DEG = `<svg class="i" viewBox="0 0 24 24"><path d="M6 12h12"/></svg>`;
+const SCENARIOS = [
+  ["Power cut", "power outage", `<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>`],
+  ["Internet down", "internet", `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`],
+  ["Router fails", "router", `<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 16.5h.01M11 16.5h.01M8 9a6 6 0 0 1 8 0M5.5 6.5a9.5 9.5 0 0 1 13 0"/>`],
+  ["Pi crashes", "raspberry pi", `<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/>`],
+  ["Zigbee stick fails", "zigbee coordinator", `<path d="M5 6h14L5 18h14"/>`],
+  ["NAS fails", "nas", `<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 17h.01"/>`],
+];
+let CAT = null, wiRoots = [], wiShowAll = false, wiLast = null, wiSeq = 0;
+
+async function loadCatalog() {
+  CAT = await api("/api/catalog");
+  renderPicker();
+  renderWhatIf(null);
 }
+
+function impBadge(it, total) {
+  if (it.functions_failed) return `<span class="imp ${it.functions_failed / total > 0.3 ? "bad" : "warn"}">${it.functions_failed} of ${total} stop</span>`;
+  if (it.functions_degraded) return `<span class="imp warn">${it.functions_degraded} limited</span>`;
+  return `<span class="imp">no effect</span>`;
+}
+
+function renderPicker() {
+  if (!CAT) return;
+  const f = normalizeQ($("#wi-q").value);
+  const total = CAT.functions.length;
+  $("#wi-list").innerHTML = CAT.groups.map((g) => {
+    let items = g.items.filter((i) => !f || normalizeQ(i.label).includes(f));
+    if (!items.length) return "";
+    const cut = !f && !wiShowAll && g.key === "services" && items.length > 8;
+    const shown = cut ? items.slice(0, 8) : items;
+    return `<div class="wi-gh">${esc(g.title)}<span class="n">${items.length}</span></div>` +
+      shown.map((i) => `<div class="wi-row ${wiRoots.includes(i.id) ? "sel" : ""}" data-pick="${esc(i.id)}" role="button" tabindex="0">
+        <span class="nm" title="${esc(i.label)}">${esc(i.label)}${i.planned ? "<small>planned</small>" : ""}</span>${impBadge(i, total)}
+        <button class="wi-add" data-add="${esc(i.id)}" title="${wiRoots.includes(i.id) ? "Remove" : "Also fails (combine)"}"
+          aria-label="${wiRoots.includes(i.id) ? "Remove" : "Add"} ${esc(i.label)}">${wiRoots.includes(i.id) ? "−" : "+"}</button></div>`).join("") +
+      (cut ? `<button class="btn sm ghost wi-more" data-more="1">Show all ${items.length} services</button>` : "");
+  }).join("") || `<div class="empty-state" style="padding:10px">Nothing in the list matches. Press Enter to search everything (devices, integrations …).</div>`;
+}
+function normalizeQ(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim(); }
+
+async function setRoots(ids) {
+  wiRoots = ids;
+  renderPicker();
+  const seq = ++wiSeq;   // a slower older answer must not overwrite a newer pick
+  if (!ids.length) { renderWhatIf(null); return; }
+  const r = await api(`/api/impact?${ids.map((i) => `node=${encodeURIComponent(i)}`).join("&")}`);
+  if (seq === wiSeq) renderWhatIf(r);
+}
+
+function renderWhatIf(r) {
+  wiLast = r;
+  const fns = (CAT && CAT.functions) || [];
+  const total = fns.length;
+  const st = {};
+  if (r) {
+    r.functions.failed.forEach((x) => { st[x.id] = ["fail", x]; });
+    r.functions.degraded.forEach((x) => { st[x.id] = ["deg", x]; });
+  }
+  const nF = r ? r.functions.failed.length : 0, nD = r ? r.functions.degraded.length : 0;
+  const who = r ? r.roots.map((x) => x.label).join(" + ") : "";
+  $("#wi-sel").innerHTML = r ? r.roots.map((x) => `<span class="root-chip"><span class="dot" style="background:var(--bad)"></span>${esc(x.label)}
+      <button data-unroot="${esc(x.id)}" aria-label="Remove ${esc(x.label)}">×</button></span>`).join("") +
+    `<button class="btn sm" data-showmap="1">Show on map</button><button class="btn sm ghost" data-clear="1">Clear</button>` : "";
+  const tone = !r ? "ok" : nF ? "bad" : nD ? "warn" : "ok";
+  const head = !r ? "Everything works right now."
+    : nF ? `If ${who} fails, ${nF} of ${total} things stop working.`
+    : nD ? `If ${who} fails, nothing stops completely, but ${nD} only work partly.`
+    : `If ${who} fails, none of your functions is affected.`;
+  const sub = !r ? "Pick something on the left, or try one of the scenarios above."
+    : `${(r.counts.entity || { failed: 0 }).failed} Home Assistant entities would be unavailable. Click a red tile to see why.`;
+  $("#wi-hero").innerHTML = `<div class="card hero ${tone}"><div class="h-ico">${tone === "ok" ? ICON_OK : tone === "warn" ? ICON_DEG : ICON_X}</div>
+    <div><h2>${esc(head)}</h2><p>${esc(sub)}</p></div>
+    ${r ? `<div class="big">${nF}<span style="font-size:.5em;color:var(--muted)"> / ${total}</span><small>functions down</small></div>` : ""}</div>`;
+  const order = { fail: 0, deg: 1, ok: 2 };
+  const list = fns.map((f) => ({ f, s: st[f.id] ? st[f.id][0] : "ok", it: st[f.id] ? st[f.id][1] : null }))
+    .sort((a, b) => order[a.s] - order[b.s] || a.f.label.localeCompare(b.f.label));
+  $("#wi-count").textContent = r ? `${nF} stop · ${nD} limited · ${total - nF - nD} keep working` : `${total} functions, all working`;
+  $("#wi-fns").innerHTML = list.map(({ f, s, it }) => {
+    const cause = it && it.path && it.path.length > 1 ? it.path[it.path.length - 2] : null;
+    return `<div class="fn s-${s}" ${s !== "ok" ? `role="button" tabindex="0" data-fn="1"` : ""}>
+      <div class="row1"><span class="st">${s === "fail" ? ICON_X : s === "deg" ? ICON_DEG : ICON_OK}</span><span class="lb">${esc(f.label)}</span></div>
+      ${s === "ok" ? "" : `<div class="why">${s === "fail" ? "Stops" : "Works only partly"}${cause ? ` · via ${esc(cause.label)}` : ""}</div>
+        <span class="more">Why? Tap to see the chain</span>${steps(it.path, s)}`}</div>`;
+  }).join("");
+  let extra = "";
+  if (r && r.at_risk && r.at_risk.length) {
+    extra += `<div class="note warn"><b>Still works, but without backup:</b> ${r.at_risk.map((x) => esc(x.label)).join(", ")}.
+      One more failure there and it stops too.</div>`;
+  }
+  const tech = r ? r.groups.filter((g) => g.type !== "function") : [];
+  if (tech.length) {
+    extra += `<details class="tech"><summary><span class="n">Technical details: what else goes down</span><span class="num">${tech.reduce((s, g) => s + g.failed.length, 0)} items</span></summary>
+      <div class="rows">${tech.map((g) => `<details><summary><span class="dot" style="background:${color(g.type)}"></span>${esc(g.title)}
+        <span class="num"><span class="f">${g.failed.length}</span>${g.degraded.length ? ` · <span class="d">${g.degraded.length}</span>` : ""}</span></summary>
+        <div class="names">${g.failed.slice(0, 300).map((i) => `<div>${esc(i.label)}</div>`).join("")}${g.degraded.slice(0, 100).map((i) => `<div style="color:var(--warn)">${esc(i.label)}</div>`).join("")}</div>
+      </details>`).join("")}</div></details>`;
+  }
+  $("#wi-extra").innerHTML = extra;
+}
+
+async function resolveAsk(text) {
+  const r = await api(`/api/ask?q=${encodeURIComponent(text)}`);
+  return r.matched ? r.matched.id : null;
+}
+
+function setupWhatIf() {
+  $("#scen").innerHTML = `<span class="lbl">Try</span>` + SCENARIOS.map(([l, q, ic]) =>
+    `<button class="chip" data-scen="${esc(q)}"><svg class="i" viewBox="0 0 24 24">${ic}</svg>${esc(l)}</button>`).join("");
+  const q = $("#wi-q");
+  q.addEventListener("input", () => { wiShowAll = false; renderPicker(); });
+  q.addEventListener("keydown", async (ev) => {
+    if (ev.key === "Escape") { q.value = ""; renderPicker(); return; }
+    if (ev.key !== "Enter") return;
+    const first = $("#wi-list [data-pick]");
+    if (first) { setRoots([first.dataset.pick]); return; }
+    const hit = (await api(`/api/search?q=${encodeURIComponent(q.value)}&limit=1`))[0];
+    const id = hit ? hit.id : await resolveAsk(q.value);
+    if (id) setRoots([id]);
+  });
+  $("#tab-whatif").addEventListener("click", async (ev) => {
+    const add = ev.target.closest("[data-add]");
+    if (add) { const id = add.dataset.add; setRoots(wiRoots.includes(id) ? wiRoots.filter((x) => x !== id) : [...wiRoots, id]); return; }
+    const row = ev.target.closest("[data-pick]");
+    if (row) { setRoots(wiRoots.length === 1 && wiRoots[0] === row.dataset.pick ? [] : [row.dataset.pick]); return; }
+    if (ev.target.closest("[data-more]")) { wiShowAll = true; renderPicker(); return; }
+    const un = ev.target.closest("[data-unroot]");
+    if (un) { setRoots(wiRoots.filter((x) => x !== un.dataset.unroot)); return; }
+    if (ev.target.closest("[data-clear]")) { setRoots([]); return; }
+    if (ev.target.closest("[data-showmap]")) { const ids = [...wiRoots]; showTab("map"); roots = ids; await simulate(ids); return; }
+    const sc = ev.target.closest("[data-scen]");
+    if (sc) { const id = await resolveAsk(sc.dataset.scen); if (id) setRoots([id]); return; }
+    const fn = ev.target.closest("[data-fn]");
+    if (fn) fn.classList.toggle("open");
+  });
+  $("#tab-whatif").addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    const t = ev.target.closest("[data-pick], [data-fn]");
+    if (t && !ev.target.closest("button, input")) { ev.preventDefault(); t.click(); }
+  });
+}
+
+/* ------------------------------------------------------------------ pages */
+function meter(x, tone) {
+  return `<div class="mt"><div class="meter ${tone}"><i style="width:${pct(x)}"></i></div><b>${pct(x)}</b></div>`;
+}
+const pageHead = (kicker, title, text, right = "") =>
+  `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1><p>${text}</p></div>${right ? `<div class="actions">${right}</div>` : ""}</div>`;
+const card = (title, body, aside = "", flush = false) =>
+  `<div class="card"><div class="card-h"><h3>${title}</h3>${aside ? `<span class="aside">${aside}</span>` : ""}</div><div class="card-b${flush ? " flush" : ""}">${body}</div></div>`;
 
 async function renderSpof() {
   const r = await api("/api/spof");
-  const row = (x) => `<tr class="rowlink" data-node="${esc(x.id)}"><td><div style="display:flex;gap:8px;align-items:center">
-      <span class="dot" style="background:${color(x.type)}"></span><b style="font-weight:600">${esc(x.label)}</b></div>
+  const row = (x) => `<tr class="rowlink" data-whatif="${esc(x.id)}" title="Simulate"><td><div style="display:flex;gap:8px;align-items:center">
+      <span class="dot" style="background:${color(x.type)}"></span><b>${esc(x.label)}</b></div>
       ${x.same_impact.length ? `<div class="same">same outcome: ${x.same_impact.map((m) => esc(m.label)).join(", ")}</div>` : ""}</td>
-    <td>${meter(x.function_share, "var(--fail)")}</td><td>${meter(x.entity_share, "var(--deg)")}</td>
-    <td class="fnlist">${x.functions.slice(0, 6).map(esc).join(", ")}${x.functions.length > 6 ? ` +${x.functions.length - 6}` : ""}</td></tr>`;
+    <td>${meter(x.function_share, "bad")}</td><td>${meter(x.entity_share, "warn")}</td>
+    <td class="small">${x.functions.slice(0, 6).map(esc).join(", ")}${x.functions.length > 6 ? ` +${x.functions.length - 6}` : ""}</td></tr>`;
+  const table = (rows) => `<div class="tbl-wrap"><table class="t"><thead><tr><th>Single point of failure</th><th>Functions</th><th>Entities</th><th>Functions affected</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
   const rest = r.top.filter((x) => x.score <= r.threshold).slice(0, 10);
-  $("#spof").innerHTML = `<h1>Weak spots</h1>
-    <p class="sub">Each of these takes down more than ${pct(r.threshold)} of your ${r.totals.function} functions or ${r.totals.entity} entities on its own.
-      Nodes with exactly the same outcome are merged into one row.</p>
-    <div class="card"><table class="tbl"><thead><tr><th>Single point of failure</th><th>Functions</th><th>Entities</th><th>Functions affected</th></tr></thead>
-      <tbody>${r.spofs.map(row).join("") || `<tr><td colspan="4" class="empty-state">None above the threshold.</td></tr>`}</tbody></table></div>
-    ${rest.length ? `<div class="card"><h2>Next biggest risks</h2><table class="tbl"><tbody>${rest.map(row).join("")}</tbody></table></div>` : ""}`;
+  const n = r.spofs.length;
+  $("#spof").innerHTML = pageHead("Weak spots", "Single points of failure",
+    `Each of these takes down more than ${pct(r.threshold)} of your ${r.totals.function} functions or ${r.totals.entity} entities on its own.
+     Nodes with exactly the same outcome are merged into one row. Click a row to simulate it.`) +
+    `<div class="card hero ${n ? "warn" : "ok"}" style="margin-bottom:16px"><div class="h-ico">${n ? ICON_DEG : ICON_OK}</div>
+      <div><h2>${n ? `${n} weak spot${n > 1 ? "s" : ""} found` : "No single point of failure above the threshold"}</h2>
+      <p>${n ? "A backup or a second path for these would help most." : "Nothing alone takes down most of your home."}</p></div></div>` +
+    card("Weak spots", table(r.spofs.map(row).join("") || `<tr><td colspan="4" class="empty-state">None above the threshold.</td></tr>`), "", true) +
+    (rest.length ? `<div style="height:16px"></div>` + card("Next biggest risks", table(rest.map(row).join("")), "", true) : "");
 }
 
 async function renderLive() {
   const r = await api("/api/live");
-  const state = !r.ok ? `<span style="color:var(--fail)">failed</span>` : r.warming_up ? "learning baseline (Home Assistant just started)" : "watching";
-  $("#live").innerHTML = `<h1>Live</h1><p class="sub">Home Assistant is polled every minute. When many entities become unavailable at once,
-      Blast-Radius looks for the common cause and notifies you.</p>
-    <div class="grid2">
-      <div class="card"><div class="muted" style="font-size:12px">Unavailable now</div><div class="big">${r.unavailable}</div><div class="note">newly unavailable: ${r.new}</div></div>
-      <div class="card"><div class="muted" style="font-size:12px">Monitoring</div><div style="font-size:15px;font-weight:600;margin:4px 0">${state}</div>
-        <div class="note">${r.last_poll ? `last poll ${esc(r.last_poll.slice(11, 19))}` : ""} ${r.error ? esc(r.error) : ""}</div></div>
+  const state = !r.ok ? `<span class="c-bad">failed</span>` : r.warming_up ? "learning baseline (Home Assistant just started)" : "watching";
+  $("#live").innerHTML = pageHead("Live", "Mass outages",
+      "Home Assistant is polled every minute. When many entities become unavailable at once, Blast-Radius looks for the common cause and notifies you.") +
+    `<div class="grid cols-2" style="margin-bottom:16px">
+      <div class="card tile"><div class="tile-top">Unavailable now</div><div class="tile-val">${r.unavailable}</div><div class="tile-sub">newly unavailable: ${r.new}</div></div>
+      <div class="card tile"><div class="tile-top">Monitoring</div><div class="tile-val" style="font-size:20px">${state}</div>
+        <div class="tile-sub">${r.last_poll ? `last poll ${esc(r.last_poll.slice(11, 19))}` : ""} ${r.error ? esc(r.error) : ""}</div></div>
     </div>
-    <div class="card"><h2>Current cause</h2>${r.cause ? causeHtml(r.cause) : `<div class="empty-state">No mass outage right now.</div>`}</div>
-    <div class="card"><h2>Simulate a mass outage</h2><p class="note" style="margin-top:0">Paste entity ids, one per line. Blast-Radius finds the node
+    <div class="grid">
+    ${card("Current cause", r.cause ? causeHtml(r.cause) : `<div class="empty-state">No mass outage right now.</div>`)}
+    ${card("Simulate a mass outage", `<p class="small muted" style="margin-top:0">Paste entity ids, one per line. Blast-Radius finds the node
       that explains them best. Nothing is changed and no notification is sent.</p>
       <textarea id="sim-ents" placeholder="binary_sensor.kitchen_motion&#10;sensor.kitchen_temperature"></textarea>
       <div class="actions"><button class="btn primary" id="sim-run">Find cause</button>
-        <span class="muted" style="font-size:12px">or fill with the entities behind</span>
-        <button class="btn" data-fill="zigbee coordinator">Zigbee</button><button class="btn" data-fill="kasa hub">Thermostat hub</button>
-        <button class="btn" data-fill="fritzbox">Router</button></div>
-      <div id="sim-out" style="margin-top:12px"></div></div>
-    <div class="card"><h2>History</h2>${(r.history || []).map((h) => `<div class="alert warn"><time>${esc(h.at.slice(0, 16).replace("T", " "))}</time><span>${esc(h.message)}</span></div>`).join("")
-      || `<div class="empty-state">No mass outages recorded.</div>`}</div>`;
+        <span class="muted small">or fill with the entities behind</span>
+        <button class="btn sm" data-fill="zigbee coordinator">Zigbee</button><button class="btn sm" data-fill="kasa hub">Thermostat hub</button>
+        <button class="btn sm" data-fill="fritzbox">Router</button></div>
+      <div id="sim-out" style="margin-top:12px"></div>`)}
+    ${card("History", (r.history || []).map((h) => `<div class="alert warn"><time>${esc(h.at.slice(0, 16).replace("T", " "))}</time><span>${esc(h.message)}</span></div>`).join("")
+      || `<div class="empty-state">No mass outages recorded.</div>`)}
+    </div>`;
   $("#sim-run").onclick = async () => {
     const ents = $("#sim-ents").value.split(/[\s,]+/).filter(Boolean);
     if (!ents.length) return;
@@ -439,27 +596,27 @@ async function renderLive() {
 
 function causeHtml(c) {
   if (!c.candidates || !c.candidates.length) return `<div class="empty-state">${esc(c.message || "No candidates.")}</div>`;
-  return `<div class="alert"><span><b>${esc(c.message)}</b></span></div><table class="tbl"><thead><tr><th>Candidate</th><th>Explains</th><th>Precision</th></tr></thead><tbody>` +
-    c.candidates.map((x) => `<tr class="rowlink" data-node="${esc(x.id)}"><td><div style="display:flex;gap:8px;align-items:center"><span class="dot" style="background:${color(x.type)}"></span>${esc(x.label)}</div>
+  return `<div class="alert"><span><b>${esc(c.message)}</b></span></div><div class="tbl-wrap"><table class="t"><thead><tr><th>Candidate</th><th>Explains</th><th>Precision</th></tr></thead><tbody>` +
+    c.candidates.map((x) => `<tr class="rowlink" data-whatif="${esc(x.id)}"><td><div style="display:flex;gap:8px;align-items:center"><span class="dot" style="background:${color(x.type)}"></span>${esc(x.label)}</div>
       ${x.same_impact.length ? `<div class="same">same outcome: ${x.same_impact.map((m) => esc(m.label)).join(", ")}</div>` : ""}</td>
-      <td>${x.explains} of ${c.count}</td><td>${meter(x.precision, "var(--accent)")}</td></tr>`).join("") +
-    `</tbody></table>${c.unexplained && c.unexplained.length ? `<p class="note">Not explained: ${c.unexplained.map(esc).join(", ")}</p>` : ""}`;
+      <td>${x.explains} of ${c.count}</td><td>${meter(x.precision, "")}</td></tr>`).join("") +
+    `</tbody></table></div>${c.unexplained && c.unexplained.length ? `<p class="small muted">Not explained: ${c.unexplained.map(esc).join(", ")}</p>` : ""}`;
 }
 
 async function renderChanges() {
   const r = await api("/api/changes?limit=60");
   const names = (arr) => `<div class="names">${arr.map((n) => `<div>${esc(n.label || n)} ${n.type ? `<span class="muted">${n.type}</span>` : ""}</div>`).join("")}</div>`;
-  $("#changes").innerHTML = `<h1>Changes</h1><p class="sub">Every rebuild that changes the graph is logged here, newest first.</p>
-    <div class="card">${r.map((c) => `<div class="change" style="padding:10px 0;border-top:1px solid var(--line)">
+  $("#changes").innerHTML = pageHead("Changes", "What changed in your setup", "Every rebuild that changes the dependency graph is logged here, newest first.") +
+    `<div class="card"><div class="card-b flush">${r.map((c) => `<div class="change">
       <div class="when">${esc(c.at.slice(0, 16).replace("T", " "))}</div><div class="body">
-      ${c.initial ? `<b style="font-weight:600">Initial graph</b> <span class="muted">${c.nodes_added} nodes, ${c.edges_added} edges</span>`
+      ${c.initial ? `<b>Initial graph</b> <span class="muted">${c.nodes_added} nodes, ${c.edges_added} edges</span>`
         : `<span class="delta"><span class="p">+${c.nodes_added}</span><span class="m">−${c.nodes_removed}</span> nodes</span>
            <span class="delta" style="margin-left:10px"><span class="p">+${c.edges_added}</span><span class="m">−${c.edges_removed}</span> edges</span>`}
       ${c.added.length ? `<details><summary>Added nodes</summary>${names(c.added)}</details>` : ""}
       ${c.removed.length ? `<details><summary>Removed nodes</summary>${names(c.removed)}</details>` : ""}
       ${c.edges_added_sample.length ? `<details><summary>Added edges</summary>${names(c.edges_added_sample)}</details>` : ""}
       ${c.edges_removed_sample.length ? `<details><summary>Removed edges</summary>${names(c.edges_removed_sample)}</details>` : ""}
-      </div></div>`).join("").replace('border-top:1px solid var(--line)', 'border-top:0') || `<div class="empty-state">No changes yet.</div>`}</div>`;
+      </div></div>`).join("") || `<div class="empty-state" style="padding:12px 18px">No changes yet.</div>`}</div></div>`;
 }
 
 async function renderHealth() {
@@ -468,27 +625,33 @@ async function renderHealth() {
   const alerts = Object.entries(s.alerts || {});
   const errs = (g.meta && g.meta.source_errors) || [];
   const counts = Object.entries(g.counts || {}).filter(([, c]) => c);
-  $("#health").innerHTML = `<h1>Health</h1><p class="sub">Self-monitoring of discovery, the graph and the connection to Home Assistant.</p>
-    <div class="card"><h2>Alerts</h2>${alerts.length ? alerts.map(([, a]) => `<div class="alert"><time>${esc(a.since.slice(0, 16).replace("T", " "))}</time><span>${esc(a.message)}</span></div>`).join("")
-      : `<div class="alert ok"><span>No active alerts.</span></div>`}
-      ${s.pending_shrink ? `<div class="actions"><button class="btn primary" id="accept">Accept the smaller graph</button></div>` : ""}</div>
-    <div class="grid2">
-      <div class="card"><h2>Discovery</h2><div class="kv">
-        ${Object.entries((g.meta && g.meta.collected_at) || {}).map(([h, t]) => `<span>${esc(h.replace("host:", ""))}</span><span>collected ${esc(String(t).slice(0, 16).replace("T", " "))}</span>`).join("")}
-        <span>Graph built</span><span>${esc(String(g.meta && g.meta.built_at).slice(0, 16).replace("T", " "))}</span>
-        <span>Nodes / edges</span><span>${g.nodes} / ${g.edges}</span>
-        <span>Notifications</span><span>${esc(s.notify_service || "not configured")}${s.ha_configured ? "" : " (HA token missing)"}</span></div>
-        <div class="actions"><button class="btn" id="rebuild">Rebuild now</button><span class="note">uses the latest facts and the current overrides</span></div></div>
-      <div class="card"><h2>Nodes</h2><div class="kv">${counts.map(([t, c]) => `<span><span class="dot" style="display:inline-block;margin-right:6px;background:${color(t)}"></span>${t}</span><span>${c}</span>`).join("")}</div></div>
+  const kv = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+  $("#health").innerHTML = pageHead("Health", "Is Blast-Radius itself OK?", "Self-monitoring of discovery, the graph and the connection to Home Assistant.") +
+    `<div class="card hero ${alerts.length ? "warn" : "ok"}" style="margin-bottom:16px"><div class="h-ico">${alerts.length ? ICON_DEG : ICON_OK}</div>
+      <div><h2>${alerts.length ? `${alerts.length} active alert${alerts.length > 1 ? "s" : ""}` : "Everything fine"}</h2>
+      <p>${alerts.length ? alerts.map(([, a]) => esc(a.message)).join(" · ") : `Graph with ${g.nodes || 0} nodes and ${g.edges || 0} edges, built ${esc(String(g.meta && g.meta.built_at).slice(0, 16).replace("T", " "))}.`}</p></div>
+      ${s.pending_shrink ? `<div class="actions" style="margin:0 0 0 auto"><button class="btn primary" id="accept">Accept the smaller graph</button></div>` : ""}</div>
+    <div class="grid cols-2">
+      ${card("Discovery", kv([
+        ...Object.entries((g.meta && g.meta.collected_at) || {}).map(([h, t]) => [esc(h.replace("host:", "")), `collected ${esc(String(t).slice(0, 16).replace("T", " "))}`]),
+        ["Graph built", esc(String(g.meta && g.meta.built_at).slice(0, 16).replace("T", " "))],
+        ["Nodes / edges", `${g.nodes} / ${g.edges}`],
+        ["Notifications", `${esc(s.notify_service || "not configured")}${s.ha_configured ? "" : " (HA token missing)"}`]]) +
+        `<div class="actions"><button class="btn" id="rebuild">Rebuild now</button><span class="small muted">uses the latest facts and the current overrides</span></div>`)}
+      ${card("Nodes", kv(counts.map(([t, c]) => [`<span class="dot" style="margin-right:6px;background:${color(t)}"></span>${t}`, c])))}
     </div>
-    ${errs.length ? `<div class="card"><h2>Source errors</h2>${errs.map((e) => `<div class="alert">${esc(e.host)} / ${esc(e.source)}: ${esc(e.error)}</div>`).join("")}</div>` : ""}
-    <div class="card"><h2>Override warnings</h2>${(g.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("")
-      || `<div class="alert ok"><span>Every reference in overrides.yaml resolves.</span></div>`}</div>
-    <div class="card"><h2>API for voice assistants</h2><p class="note" style="margin:0"><code>GET /api/ask?q=What happens if the Pi crashes?</code>
-      returns <code>speech</code>, <code>functions</code> and <code>matched</code>. All endpoints: <a href="/docs">/docs</a></p></div>`;
-  const rb = $("#rebuild"); if (rb) rb.onclick = async () => { rb.disabled = true; await api("/api/rebuild", { method: "POST" }); await loadGraph(); renderHealth(); };
-  const ac = $("#accept"); if (ac) ac.onclick = async () => { await api("/api/graph/accept", { method: "POST" }); await loadGraph(); renderHealth(); };
+    <div class="grid" style="margin-top:16px">
+    ${errs.length ? card("Source errors", errs.map((e) => `<div class="alert">${esc(e.host)} / ${esc(e.source)}: ${esc(e.error)}</div>`).join("")) : ""}
+    ${card("Override warnings", (g.warnings || []).map((w) => `<div class="alert warn">${esc(w)}</div>`).join("")
+      || `<div class="alert ok"><span>Every reference in overrides.yaml resolves.</span></div>`)}
+    ${card("API for voice assistants", `<p class="small" style="margin:0"><code>GET /api/ask?q=What happens if the Pi crashes?</code>
+      returns <code>speech</code>, <code>functions</code> and <code>matched</code>. All endpoints: <a href="/docs">/docs</a></p>`)}
+    </div>`;
+  const rb = $("#rebuild"); if (rb) rb.onclick = async () => { rb.disabled = true; await api("/api/rebuild", { method: "POST" }); await reloadAll(); renderHealth(); };
+  const ac = $("#accept"); if (ac) ac.onclick = async () => { await api("/api/graph/accept", { method: "POST" }); await reloadAll(); renderHealth(); };
 }
+
+async function reloadAll() { await loadGraph(); await loadCatalog(); }
 
 async function refreshStatus() {
   const pill = $("#status-pill");
@@ -496,20 +659,33 @@ async function refreshStatus() {
     const s = await api("/api/status");
     const keys = Object.keys(s.alerts || {});
     const err = keys.some((k) => k.startsWith("facts:") || k.startsWith("build"));
-    pill.className = `pill ${err ? "error" : keys.length ? "warning" : "ok"}`;
+    pill.className = `live ${err ? "error" : keys.length ? "warning" : "ok"}`;
     pill.querySelector("span").textContent = !s.graph ? "waiting for discovery"
       : keys.length ? `${keys.length} alert${keys.length > 1 ? "s" : ""}` : `${s.graph.nodes} nodes · healthy`;
     pill.title = keys.length ? Object.values(s.alerts).map((a) => a.message).join("\n") : "";
-  } catch (e) { pill.className = "pill error"; pill.querySelector("span").textContent = "offline"; }
+  } catch (e) { pill.className = "live error"; pill.querySelector("span").textContent = "offline"; }
+}
+
+async function setupHome() {
+  try {
+    const u = await api("/api/ui");
+    if (!u.home_url) return;
+    const a = document.createElement("a");
+    a.className = "btn cross home-btn"; a.href = u.home_url;
+    a.innerHTML = `<svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span class="lbl">${esc(u.home_label || "Dashboard")}</span>`;
+    $("#top-right").insertBefore(a, $("#theme-btn"));
+  } catch (e) { /* optional */ }
 }
 
 /* ------------------------------------------------------------------ boot */
 function saveLayers() { store("br-layers", JSON.stringify(layerOn)); }
+let mapBuilt = false;
 function showTab(t) {
-  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === t));
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
   document.querySelectorAll(".tab").forEach((s) => s.classList.toggle("active", s.id === `tab-${t}`));
   store("br-tab", t);
-  ({ spof: renderSpof, live: renderLive, changes: renderChanges, health: renderHealth }[t] || (() => { if (cy) cy.resize(); }))();
+  if (t === "map") { if (!mapBuilt && G) { mapBuilt = true; buildGraph(); } else if (cy) cy.resize(); return; }
+  ({ spof: renderSpof, live: renderLive, changes: renderChanges, health: renderHealth }[t] || (() => {}))();
 }
 
 (async function boot() {
@@ -518,6 +694,8 @@ function showTab(t) {
   LAYERS.forEach((l) => { layerOn[l.key] = saved[l.key] ?? l.on; });
   document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
   document.body.addEventListener("click", (ev) => {
+    const w = ev.target.closest("[data-whatif]");
+    if (w) { showTab("whatif"); setRoots([w.dataset.whatif]); return; }
     const n = ev.target.closest("[data-node]");
     if (n) { showTab("map"); pick(n.dataset.node); return; }
     const a = ev.target.closest("[data-ask]");
@@ -530,13 +708,28 @@ function showTab(t) {
     if (!Object.values(layerOn).some(Boolean)) layerOn.function = true;
     saveLayers(); renderLayers(); buildGraph();
   });
+  $("#theme-btn").onclick = () => {
+    const r = document.documentElement, t = r.dataset.theme === "dark" ? "light" : "dark";
+    r.dataset.theme = t; store("hl-theme", t);
+    if (cy) buildGraph();
+  };
   setupSearch();
+  setupWhatIf();
+  setupHome();
   $("#btn-fit").onclick = () => cy && cy.animate({ fit: { padding: 30 } }, { duration: 220, easing: "ease-out-cubic" });
   $("#btn-reset").onclick = resetSim;
   refreshStatus(); setInterval(refreshStatus, 60000);
   renderIntro();
-  try { await loadGraph(); } catch (e) { $("#impact").innerHTML = `<div class="intro"><h1>No map yet</h1><p>${esc(e.message)}</p></div>`; }
-  const t = store("br-tab"); if (t && t !== "map") showTab(t);
+  try {
+    G = await api("/api/graph?entities=true");
+    byId = {}; G.nodes.forEach((n) => { byId[n.id] = n; });
+    renderLayers();
+    await loadCatalog();
+  } catch (e) {
+    $("#wi-hero").innerHTML = `<div class="card hero warn"><div class="h-ico">${ICON_DEG}</div><div><h2>No map yet</h2><p>${esc(e.message)}</p></div></div>`;
+  }
   const u = new URLSearchParams(location.search);
-  if (u.get("node")) pick(u.get("node")); else if (u.get("ask")) { $("#q").value = u.get("ask"); ask(u.get("ask")); }
+  if (u.get("node")) { showTab("whatif"); setRoots([u.get("node")]); }
+  else if (u.get("ask")) { const id = await resolveAsk(u.get("ask")); if (id) setRoots([id]); }
+  else { const t = store("br-tab"); if (t && t !== "whatif") showTab(t); }
 })();

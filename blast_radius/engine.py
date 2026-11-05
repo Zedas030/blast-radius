@@ -12,7 +12,7 @@ import time
 from typing import Any
 
 from . import metrics
-from .analysis import CauseFinder, impact_report, spof
+from .analysis import CauseFinder, catalog, impact_report, spof
 from .build import build_graph
 from .config import load_overrides
 from .diff import diff_graphs, shrink_check
@@ -45,6 +45,7 @@ class Engine:
         self.graph: Graph | None = None
         self.finder: CauseFinder | None = None
         self.spof_cache: dict[str, Any] | None = None
+        self.catalog_cache: dict[str, Any] | None = None
         self.ha = HomeAssistant(cfg["homeassistant"])
         self.tracker = UnavailabilityTracker()
         self.state = self._load_state()
@@ -85,6 +86,7 @@ class Engine:
             self.graph = g
             self.finder = CauseFinder(g)
             self.spof_cache = spof(g, self.cfg["analysis"]["spof_threshold"])
+            self.catalog_cache = catalog(g)
         metrics.graph_updated(g, self.spof_cache)
 
     def _write_graph(self, g: Graph) -> None:

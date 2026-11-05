@@ -134,6 +134,17 @@ def create_app(cfg: dict[str, Any] | None = None, start_loops: bool = True) -> F
         graph_or_503()
         return engine.spof_cache or {}
 
+    @app.get("/api/catalog")
+    def api_catalog() -> dict[str, Any]:
+        """Grouped list of things that can fail, with their effect on the functions (for the "What if" view)."""
+        graph_or_503()
+        return engine.catalog_cache or {"functions": [], "groups": []}
+
+    @app.get("/api/ui")
+    def api_ui() -> dict[str, Any]:
+        return {"version": __version__, "home_url": cfg["ui"].get("home_url", ""),
+                "home_label": cfg["ui"].get("home_label", "Dashboard")}
+
     @app.get("/api/changes")
     def changes(limit: int = 100) -> list[dict[str, Any]]:
         return engine.changes(limit)

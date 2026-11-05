@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blast-radius"
-version = "1.0.0"
+version = "1.1.0"
 description = "Automatic dependency map of a homelab / smart home that answers: what fails if X fails?"
 readme = "README.md"
 license = { text = "MIT" }

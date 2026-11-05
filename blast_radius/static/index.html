@@ -1,35 +1,77 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="light dark">
 <title>Blast-Radius</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23ff5d5d' stroke-width='2.5' opacity='.45'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23ff5d5d' stroke-width='2.5' opacity='.75'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23ff5d5d'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/static/style.css?v=2">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%232dd4bf' stroke-width='2.5' opacity='.45'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%232dd4bf' stroke-width='2.5' opacity='.75'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%232dd4bf'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/theme.css?v=3">
+<link rel="stylesheet" href="/static/style.css?v=3">
+<script>(function(){var t;try{t=localStorage.getItem('hl-theme')}catch(e){}if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t})()</script>
 </head>
 <body>
 <header class="top">
   <a class="brand" href="/" aria-label="Blast-Radius home">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" class="r3"/><circle cx="16" cy="16" r="8" class="r2"/><circle cx="16" cy="16" r="3.5" class="r1"/></svg>
-    <span>Blast-Radius</span>
+    <span class="brand-mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" opacity=".45"/><circle cx="12" cy="12" r="5.5" opacity=".75"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg></span>
+    <span><span class="brand-name">Blast-Radius</span><span class="brand-sub">What stops working if something fails?</span></span>
   </a>
-  <nav id="tabs" class="seg" aria-label="Views">
-    <button data-tab="map" class="active">Map</button>
-    <button data-tab="spof">Weak spots</button>
-    <button data-tab="live">Live</button>
-    <button data-tab="changes">Changes</button>
-    <button data-tab="health">Health</button>
+  <nav id="tabs" class="tabs" aria-label="Views">
+    <button data-tab="whatif" class="on"><svg class="i" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>What if</button>
+    <button data-tab="spof"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 2 20h20zM12 10v4M12 17h.01"/></svg>Weak spots</button>
+    <button data-tab="map"><svg class="i" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 7.5l8-.3M7.3 8.2l3.6 7.6M16.8 9.2l-3.6 6.8"/></svg>Map</button>
+    <button data-tab="live"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Live</button>
+    <button data-tab="changes"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>Changes</button>
+    <button data-tab="health"><svg class="i" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>Health</button>
   </nav>
-  <div id="status-pill" class="pill"><i></i><span>…</span></div>
+  <div class="top-right" id="top-right">
+    <span id="status-pill" class="live"><i class="sd"></i><span>…</span></span>
+    <button class="icon-btn" id="theme-btn" type="button" aria-label="Toggle light/dark"><svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></button>
+  </div>
 </header>
 
 <main>
-  <section id="tab-map" class="tab active">
+  <section id="tab-whatif" class="tab page active">
+    <div class="content">
+      <div class="page-head">
+        <div>
+          <div class="kicker">Simulation · nothing is switched off</div>
+          <h1>What stops working if something fails?</h1>
+          <p>Pick what breaks on the left. Your everyday functions on the right turn
+            <b class="c-bad">red</b> when they stop, <b class="c-warn">amber</b> when they only work partly, and stay <b class="c-ok">green</b> otherwise.</p>
+        </div>
+      </div>
+      <div class="scen" id="scen"></div>
+      <div class="wi">
+        <section class="card wi-pick" aria-label="What fails">
+          <div class="card-h"><span class="step">1</span><h3>What fails?</h3><span class="aside">sorted by impact</span></div>
+          <div class="card-b">
+            <div class="wi-search">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="wi-q" type="search" placeholder="Filter, or ask: what if the router fails?" autocomplete="off" spellcheck="false">
+            </div>
+            <p class="small muted wi-tip">Click a row to simulate it. <b>+</b> adds it, so several things fail together.</p>
+          </div>
+          <div id="wi-list" class="wi-list"></div>
+        </section>
+        <section class="wi-result" aria-label="What happens" aria-live="polite">
+          <div id="wi-sel" class="wi-sel"></div>
+          <div id="wi-hero"></div>
+          <div class="card">
+            <div class="card-h"><span class="step">2</span><h3>Your functions</h3><span class="aside" id="wi-count"></span></div>
+            <div class="card-b"><div id="wi-fns" class="fns"></div></div>
+          </div>
+          <div id="wi-extra"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-map" class="tab">
     <aside id="side">
       <div class="search">
         <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input id="q" type="search" placeholder="Search or ask: what if the router fails?" autocomplete="off" spellcheck="false">
+        <input id="q" type="search" placeholder="Search a node or ask a question" autocomplete="off" spellcheck="false">
         <div id="results" role="listbox"></div>
       </div>
       <div id="impact"></div>
@@ -38,21 +80,21 @@
       <div id="cy" aria-label="Dependency map"></div>
       <div class="layers" id="layers" aria-label="Layers"></div>
       <div class="tools">
-        <button id="btn-fit" class="icon-btn" title="Fit to screen" aria-label="Fit to screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-        <button id="btn-reset" class="icon-btn" title="Clear simulation" aria-label="Clear simulation"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        <button id="btn-fit" class="map-btn" title="Fit to screen" aria-label="Fit to screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="btn-reset" class="map-btn" title="Clear simulation" aria-label="Clear simulation"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <div class="legend" id="legend"></div>
       <div class="hint-chip" id="canvas-hint">Click a node to simulate its failure · Shift-click to combine</div>
     </div>
   </section>
 
-  <section id="tab-spof" class="tab page"><div id="spof" class="wrap"></div></section>
-  <section id="tab-live" class="tab page"><div id="live" class="wrap"></div></section>
-  <section id="tab-changes" class="tab page"><div id="changes" class="wrap"></div></section>
-  <section id="tab-health" class="tab page"><div id="health" class="wrap"></div></section>
+  <section id="tab-spof" class="tab page"><div id="spof" class="content"></div></section>
+  <section id="tab-live" class="tab page"><div id="live" class="content"></div></section>
+  <section id="tab-changes" class="tab page"><div id="changes" class="content"></div></section>
+  <section id="tab-health" class="tab page"><div id="health" class="content"></div></section>
 </main>
 
 <script src="/static/vendor/cytoscape.min.js"></script>
-<script src="/static/app.js?v=2"></script>
+<script src="/static/app.js?v=3"></script>
 </body>
 </html>
