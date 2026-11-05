@@ -150,6 +150,7 @@ def create_app(cfg: dict[str, Any] | None = None, start_loops: bool = True) -> F
         result = finder.find(ents, ents) if finder else {}
         if body.get("notify") and result.get("candidates"):
             sent = engine.ha.notify("Blast-Radius (test)", "TEST: " + result["message"], cfg["web"].get("public_url", ""))
+            metrics.notification(sent)
             result["notified"] = sent
         return result
 
